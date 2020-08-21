@@ -1,0 +1,131 @@
+
+
+import sys
+from time import sleep
+import signal
+from gpiozero import LED, Button
+from threading import Thread
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import db
+from ADC import Adc
+
+LED = LED(17)
+BUTTON = Button(27)
+
+PAHT_CRED = '/home/pi/Desktop/HolaMundo/cred.json'
+URL_DB = 'https://iotrasp-7a9ff.firebaseio.com/'
+REF_HOME = 'home'
+REF_LUCES = 'luces'
+REF_BOTONES = 'botones'
+REF_LUZ_SALA = 'luz_sala'
+REF_PULSADOR_A = 'pulsador_a'
+REF_SANALOGA = 's_analoga'
+REF_CORRIENTE = 'corriente'
+
+class IOT():
+
+    def __init__(self):
+        cred = credentials.Certificate(PAHT_CRED)
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': URL_DB
+        })
+
+        self.refHome = db.reference(REF_HOME)
+        
+        self.estructuraInicialDB() # solo ejecutar la primera vez
+
+        self.refLuces = self.refHome.child(REF_LUCES)
+        self.refLuzSala = self.refLuces.child(REF_LUZ_SALA)
+
+        self.refBotones = self.refHome.child(REF_BOTONES)
+        self.refPulsadorA = self.refBotones.child(REF_PULSADOR_A)
+        self.val = 15
+        self.refAnaloga = self.refHome.child('s_analoga')
+        self.refCorriente = self.refAnaloga.child('corriente')
+
+        self.adc = Adc()
+
+    def estructuraInicialDB(self):
+        self.refHome.set({
+            'luces': {
+                'luz_sala':True,
+                'luz_cocina':True
+            },
+            'botones':{
+                'pulsador_a':True,
+                'pulsador_b':True
+            },
+            's_analoga':{
+                'corriente':0
+            }
+        })
+    
+    def ledControlGPIO(self, estado):
+        if estado:
+            LED.on()
+            print('LED ON')
+        else:
+            LED.off()
+            print('LED OFF')
+
+    def lucesStart(self):
+
+        E, i = [], 0
+
+        estado_anterior = self.refLuzSala.get()
+        self.ledControlGPIO(estado_anterior)
+
+        E.append(estado_anterior)
+
+        while True:
+          estado_actual = self.refLuzSala.get()
+          E.append(estado_actual)
+
+          if E[i] != E[-1]:
+              self.ledControlGPIO(estado_actual)
+
+          del E[0]
+          i = i + i
+          sleep(0.4)
+
+    def pulsador_on(self):
+        print('Pulsador On')
+        self.refPulsadorA.set(True)
+
+    def pulsador_off(self):
+        print('Pulsador Off')
+        self.refPulsadorA.set(False)
+
+    def botonesStart(self):
+        print('Start btn !')
+        BUTTON.when_pressed = self.pulsador_on
+        BUTTON.when_released = self.pulsador_off
+
+    def corrienteAC(self):  
+        while True:
+
+            self.adc.read();  
+
+            if self.adc.cambio:
+                print('Corriente ' + str(self.adc.corriente) )
+                self.refCorriente.set(self.adc.corriente)
+
+
+print ('START !')
+iot = IOT()
+
+subproceso_led = Thread(target=iot.lucesStart)
+subproceso_led.daemon = True
+subproceso_led.start()
+
+subproceso_btn = Thread(target=iot.botonesStart)
+subproceso_btn.daemon = True
+subproceso_btn.start()
+
+subproceso_cor = Thread(target=iot.corrienteAC)
+subproceso_cor.daemon = True
+subproceso_cor.start()
+
+signal.pause()
+ 
