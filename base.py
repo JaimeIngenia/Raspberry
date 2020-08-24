@@ -14,10 +14,12 @@ class Adc ():
         self.res=0
         self.Ieficaz=0
         self.prev_val = 0
-        self.error = 1 
+        self.error = 0.1
         self.cambio = False
+        self.potencia=0
 
     def read(self):
+        self.sumIinstant=0
         for i in range(1,200):
             self.bitsads = self.adc.read_adc_difference(0, gain=self.GAIN)
             self.mVinstant = self.bitsads * 0.625
@@ -25,6 +27,7 @@ class Adc ():
             self.sumIinstant = self.sumIinstant + pow((self.Iinstant),2)
         self.res=self.sumIinstant/200
         self.Ieficaz = (math.sqrt(self.res) )*0.4
+        self.potencia=self.Ieficaz*220
 
 if __name__=='__main__':
     adc = Adc()

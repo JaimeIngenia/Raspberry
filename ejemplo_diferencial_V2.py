@@ -18,6 +18,6 @@ def med_Ieficaz():
 
 while True:
     Int_calculada = med_Ieficaz() * 1.409
-    #print (Int_calculada)
+    print (Int_calculada)
     time.sleep(0.5)
 
